@@ -340,7 +340,6 @@ for key, default in [
     ("difficulty",    "Medium"),
     ("subject",       "General"),
     ("recommendations", None),
-    ("show_onboard",  True),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -353,42 +352,6 @@ if not st.session_state.logged_in:
 
     st.markdown("<h1>🎓 AI Smart Study Assistant</h1>", unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Your personal AI tutor — learn, quiz, improve.</p>', unsafe_allow_html=True)
-
-    # ── Onboarding ──
-    if st.session_state.show_onboard:
-        st.markdown("""
-        <div class="onboard-card">
-          <h3 style="margin-bottom:20px;">👋 How It Works</h3>
-          <div class="onboard-step">
-            <div class="onboard-num">1</div>
-            <div class="onboard-text">
-              <div class="onboard-title">Enter any topic</div>
-              Type any subject — Trigonometry, Photosynthesis, World War II, Machine Learning…
-            </div>
-          </div>
-          <div class="onboard-step">
-            <div class="onboard-num">2</div>
-            <div class="onboard-text">
-              <div class="onboard-title">Read your personalised lesson</div>
-              The AI generates a rich explanation with examples, analogies, and real-world applications.
-            </div>
-          </div>
-          <div class="onboard-step">
-            <div class="onboard-num">3</div>
-            <div class="onboard-text">
-              <div class="onboard-title">Take a 20-question quiz</div>
-              Auto-difficulty detection calibrates the quiz to the topic's complexity.
-            </div>
-          </div>
-          <div class="onboard-step">
-            <div class="onboard-num">4</div>
-            <div class="onboard-text">
-              <div class="onboard-title">Get AI explanations + recommendations</div>
-              Wrong answers get explained. You get personalised next-topic recommendations and a learning path.
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
 
     # ── Login form ──
     st.markdown('<div class="login-wrap"><div class="login-card">', unsafe_allow_html=True)
@@ -403,7 +366,6 @@ if not st.session_state.logged_in:
             db_get_or_create_user(name)
             st.session_state.username     = name
             st.session_state.logged_in    = True
-            st.session_state.show_onboard = False
             st.rerun()
         else:
             st.warning("Please enter a username!")
