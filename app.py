@@ -395,28 +395,18 @@ if not st.session_state.logged_in:
     st.markdown("### 🔐 Enter Your Name to Start")
     st.markdown('<p style="color:#64748b;font-size:0.87rem;margin-bottom:20px;">Your progress, streak and history are saved across sessions.</p>', unsafe_allow_html=True)
 
-    username_input = st.text_input("Your name or username", placeholder="e.g. Sajid, student_01…", label_visibility="collapsed")
+    username_input = st.text_input("Your name or username", placeholder="Enter a username…", label_visibility="collapsed")
 
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        if st.button("🚀 Start Learning", use_container_width=True):
-            if username_input.strip():
-                name = username_input.strip().lower().replace(" ", "_")
-                db_get_or_create_user(name)
-                st.session_state.username   = name
-                st.session_state.logged_in  = True
-                st.session_state.show_onboard = False
-                st.rerun()
-            else:
-                st.warning("Please enter your name!")
-    with col2:
-        if st.button("🎯 Try Demo", use_container_width=True):
-            db_get_or_create_user("demo")
-            st.session_state.username   = "demo"
-            st.session_state.logged_in  = True
-            st.session_state.topic      = "Photosynthesis"
+    if st.button("🚀 Start Learning", use_container_width=True):
+        if username_input.strip():
+            name = username_input.strip().lower().replace(" ", "_")
+            db_get_or_create_user(name)
+            st.session_state.username     = name
+            st.session_state.logged_in    = True
             st.session_state.show_onboard = False
             st.rerun()
+        else:
+            st.warning("Please enter a username!")
 
     st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
