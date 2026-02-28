@@ -328,21 +328,30 @@ h2,h3{color:#e2e8f0!important;font-weight:600!important;}
 #  SESSION STATE DEFAULTS
 # ─────────────────────────────────────────────
 for key, default in [
-    ("logged_in",     False),
-    ("username",      ""),
-    ("phase",         "input"),
-    ("explanation",   ""),
-    ("quiz",          None),
-    ("user_answers",  {}),
-    ("submitted",     False),
-    ("score",         0),
-    ("topic",         ""),
-    ("difficulty",    "Medium"),
-    ("subject",       "General"),
+    ("logged_in",       False),
+    ("username",        ""),
+    ("phase",           "input"),
+    ("explanation",     ""),
+    ("quiz",            None),
+    ("user_answers",    {}),
+    ("submitted",       False),
+    ("score",           0),
+    ("topic",           ""),
+    ("difficulty",      "Medium"),
+    ("subject",         "General"),
     ("recommendations", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
+
+# ── Auto-login from URL query param on refresh ──
+if not st.session_state.logged_in:
+    params = st.query_params
+    if "user" in params and params["user"].strip():
+        saved_name = params["user"].strip()
+        db_get_or_create_user(saved_name)
+        st.session_state.username  = saved_name
+        st.session_state.logged_in = True
 
 
 # ══════════════════════════════════════════════
@@ -353,24 +362,24 @@ if not st.session_state.logged_in:
     st.markdown("<h1>🎓 AI Smart Study Assistant</h1>", unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Your personal AI tutor — learn, quiz, improve.</p>', unsafe_allow_html=True)
 
-    # ── Login form ──
-    st.markdown('<div class="login-wrap"><div class="login-card">', unsafe_allow_html=True)
-    st.markdown("### 🔐 Enter Your Name to Start")
-    st.markdown('<p style="color:#64748b;font-size:0.87rem;margin-bottom:20px;">Your progress, streak and history are saved across sessions.</p>', unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 2, 1])
+    with col:
+        st.markdown("### 🔐 Enter Your Username to Start")
+        st.markdown('<p style="color:#64748b;font-size:0.87rem;margin-bottom:20px;">Your progress, streak and history are saved across sessions.</p>', unsafe_allow_html=True)
 
-    username_input = st.text_input("Your name or username", placeholder="Enter a username…", label_visibility="collapsed")
+        username_input = st.text_input("Username", placeholder="Enter a username…", label_visibility="collapsed")
 
-    if st.button("🚀 Start Learning", use_container_width=True):
-        if username_input.strip():
-            name = username_input.strip().lower().replace(" ", "_")
-            db_get_or_create_user(name)
-            st.session_state.username     = name
-            st.session_state.logged_in    = True
-            st.rerun()
-        else:
-            st.warning("Please enter a username!")
+        if st.button("🚀 Start Learning", use_container_width=True):
+            if username_input.strip():
+                name = username_input.strip().lower().replace(" ", "_")
+                db_get_or_create_user(name)
+                st.session_state.username  = name
+                st.session_state.logged_in = True
+                st.query_params["user"] = name
+                st.rerun()
+            else:
+                st.warning("Please enter a username!")
 
-    st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
 
 
@@ -460,6 +469,7 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("🚪 Log Out"):
+        st.query_params.clear()
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
