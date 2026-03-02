@@ -1,149 +1,149 @@
 import streamlit as st
 from groq import Groq
-import json, re, datetime, sqlite3, os
+import json, re, datetime, sqlite3, os, time
 import streamlit.components.v1 as components
 
 # ─────────────────────────────────────────────
 #  CONFIG
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="AI Study Assistant", layout="wide", page_icon="🎓")
+st.set_page_config(
+    page_title="StudyMate AI — Powered by AMD",
+    layout="wide",
+    page_icon="🎓"
+)
 
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=GROQ_API_KEY)
 
+# FIX 7 — Expanded subject detection with more keywords
 SUBJECT_TAGS = {
-    "Math": ["algebra","calculus","trigonometry","geometry","statistics","probability","matrices","vectors"],
-    "Science": ["physics","chemistry","biology","photosynthesis","genetics","evolution","thermodynamics","quantum"],
-    "History": ["war","revolution","empire","civilization","ancient","medieval","colonial","world war"],
-    "Technology": ["programming","algorithm","machine learning","ai","neural","database","networking","cybersecurity"],
-    "Economics": ["supply","demand","inflation","gdp","microeconomics","macroeconomics","market","fiscal"],
-    "Literature": ["poetry","novel","shakespeare","metaphor","grammar","syntax","narrative","prose"],
+    "Math": [
+        "algebra","calculus","trigonometry","geometry","statistics","probability",
+        "matrices","vectors","arithmetic","number theory","differentiation",
+        "integration","logarithm","quadratic","polynomial","equation","set theory",
+        "combinatorics","permutation","sequence","series","complex number"
+    ],
+    "Science": [
+        "physics","chemistry","biology","photosynthesis","genetics","evolution",
+        "thermodynamics","quantum","organic","inorganic","cell","atom","molecule",
+        "force","motion","gravity","electricity","magnetism","optics","waves",
+        "nuclear","reaction","periodic table","enzyme","dna","protein","ecosystem",
+        "chemical","biochemistry","anatomy","botany","zoology","microbiology"
+    ],
+    "History": [
+        "war","revolution","empire","civilization","ancient","medieval","colonial",
+        "world war","independence","dynasty","kingdom","republic","democracy",
+        "french","american","industrial","renaissance","reformation","crusades",
+        "ottoman","mughal","british","roman","greek","egyptian","chinese history"
+    ],
+    "Technology": [
+        "programming","algorithm","machine learning","artificial intelligence","neural",
+        "database","networking","cybersecurity","software","hardware","operating system",
+        "data structure","cloud","devops","blockchain","cryptography","computer",
+        "python","javascript","java","coding","web development","api","deep learning",
+        "natural language","computer vision","robotics","iot","semiconductor"
+    ],
+    "Economics": [
+        "supply","demand","inflation","gdp","microeconomics","macroeconomics",
+        "market","fiscal","monetary","trade","investment","stock","bond","finance",
+        "banking","currency","recession","capitalism","socialism","budget","tax",
+        "unemployment","interest rate","opportunity cost","elasticity"
+    ],
+    "Literature": [
+        "poetry","novel","shakespeare","metaphor","grammar","syntax","narrative",
+        "prose","rhetoric","essay","fiction","drama","tragedy","comedy","sonnet",
+        "symbolism","theme","character","plot","setting","genre","literary"
+    ],
+    "Geography": [
+        "continent","ocean","climate","biome","tectonic","erosion","latitude",
+        "longitude","map","country","capital","mountain","river","desert","rainforest",
+        "population","migration","urbanization","geopolitics"
+    ],
+    "Philosophy": [
+        "ethics","logic","epistemology","metaphysics","ontology","socrates","plato",
+        "aristotle","kant","nietzsche","existentialism","utilitarianism","morality",
+        "consciousness","free will","determinism","empiricism","rationalism"
+    ],
 }
 
 DB_PATH = "study_assistant.db"
 
 # ─────────────────────────────────────────────
-#  DATABASE SETUP
+#  DATABASE
 # ─────────────────────────────────────────────
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            created_at TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS study_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            topic TEXT,
-            subject TEXT,
-            difficulty TEXT,
-            score INTEGER,
-            total INTEGER,
-            accuracy INTEGER,
-            studied_at TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS streak_log (
-            username TEXT,
-            date TEXT,
-            PRIMARY KEY (username, date)
-        )
-    """)
-    conn.commit()
-    conn.close()
+    c.execute("""CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY, created_at TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS study_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT, topic TEXT, subject TEXT, difficulty TEXT,
+        score INTEGER, total INTEGER, accuracy INTEGER, studied_at TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS streak_log (
+        username TEXT, date TEXT, PRIMARY KEY (username, date))""")
+    conn.commit(); conn.close()
 
 def db_get_or_create_user(username):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users VALUES (?, ?)",
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users VALUES (?,?)",
               (username, datetime.datetime.now().isoformat()))
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
 def db_save_result(username, topic, subject, difficulty, score, total):
     accuracy = round(score / total * 100)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO study_history (username,topic,subject,difficulty,score,total,accuracy,studied_at)
-        VALUES (?,?,?,?,?,?,?,?)
-    """, (username, topic, subject, difficulty, score, total, accuracy,
-          datetime.datetime.now().isoformat()))
-    conn.commit()
-    conn.close()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""INSERT INTO study_history
+        (username,topic,subject,difficulty,score,total,accuracy,studied_at)
+        VALUES (?,?,?,?,?,?,?,?)""",
+        (username, topic, subject, difficulty, score, total, accuracy,
+         datetime.datetime.now().isoformat()))
+    conn.commit(); conn.close()
 
 def db_record_streak(username):
     today = datetime.date.today().isoformat()
-    conn  = sqlite3.connect(DB_PATH)
-    c     = conn.cursor()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO streak_log VALUES (?,?)", (username, today))
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
 def db_get_history(username):
-    conn = sqlite3.connect(DB_PATH)
-    c    = conn.cursor()
-    c.execute("""
-        SELECT topic, subject, difficulty, score, total, accuracy, studied_at
-        FROM study_history WHERE username=? ORDER BY studied_at DESC
-    """, (username,))
-    rows = c.fetchall()
-    conn.close()
-    return [{"topic":r[0],"subject":r[1],"difficulty":r[2],
-             "score":r[3],"total":r[4],"accuracy":r[5],"date":r[6][:16].replace("T"," ")}
-            for r in rows]
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""SELECT topic,subject,difficulty,score,total,accuracy,studied_at
+        FROM study_history WHERE username=? ORDER BY studied_at DESC""", (username,))
+    rows = c.fetchall(); conn.close()
+    return [{"topic":r[0],"subject":r[1],"difficulty":r[2],"score":r[3],
+             "total":r[4],"accuracy":r[5],"date":r[6][:16].replace("T"," ")} for r in rows]
 
 def db_get_streak(username):
-    conn  = sqlite3.connect(DB_PATH)
-    c     = conn.cursor()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT date FROM streak_log WHERE username=? ORDER BY date DESC", (username,))
-    dates = [r[0] for r in c.fetchall()]
-    conn.close()
-    streak = 0
-    check  = datetime.date.today()
+    dates = [r[0] for r in c.fetchall()]; conn.close()
+    streak = 0; check = datetime.date.today()
     for d in dates:
         if datetime.date.fromisoformat(d) == check:
-            streak += 1
-            check  -= datetime.timedelta(days=1)
-        else:
-            break
+            streak += 1; check -= datetime.timedelta(days=1)
+        else: break
     return streak
 
 def db_get_stats(username):
-    conn = sqlite3.connect(DB_PATH)
-    c    = conn.cursor()
-    c.execute("SELECT COUNT(DISTINCT topic), COUNT(*), AVG(accuracy) FROM study_history WHERE username=?", (username,))
-    row = c.fetchone()
-    conn.close()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT COUNT(DISTINCT topic),COUNT(*),AVG(accuracy) FROM study_history WHERE username=?", (username,))
+    row = c.fetchone(); conn.close()
     return {"topics": row[0] or 0, "quizzes": row[1] or 0, "avg_acc": round(row[2] or 0)}
 
 def db_get_weak_areas(username):
-    conn = sqlite3.connect(DB_PATH)
-    c    = conn.cursor()
-    c.execute("""
-        SELECT topic, difficulty, AVG(accuracy) as avg_acc
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""SELECT topic,difficulty,AVG(accuracy) as avg_acc
         FROM study_history WHERE username=?
-        GROUP BY topic HAVING avg_acc < 60
-        ORDER BY avg_acc ASC LIMIT 5
-    """, (username,))
-    rows = c.fetchall()
-    conn.close()
+        GROUP BY topic HAVING avg_acc < 60 ORDER BY avg_acc ASC LIMIT 5""", (username,))
+    rows = c.fetchall(); conn.close()
     return [{"topic":r[0],"difficulty":r[1],"accuracy":round(r[2])} for r in rows]
 
 def db_get_chart_data(username):
-    conn = sqlite3.connect(DB_PATH)
-    c    = conn.cursor()
-    c.execute("""
-        SELECT topic, accuracy, studied_at FROM study_history
-        WHERE username=? ORDER BY studied_at ASC LIMIT 20
-    """, (username,))
-    rows = c.fetchall()
-    conn.close()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("""SELECT topic,accuracy,studied_at FROM study_history
+        WHERE username=? ORDER BY studied_at ASC LIMIT 20""", (username,))
+    rows = c.fetchall(); conn.close()
     return rows
 
 def detect_subject(topic):
@@ -156,6 +156,42 @@ def detect_subject(topic):
 init_db()
 
 # ─────────────────────────────────────────────
+#  FIX 4 — API CALL WRAPPER WITH RETRY
+# ─────────────────────────────────────────────
+def safe_api_call(messages, temperature=0.7, max_tokens=1000, retries=3):
+    """Wraps Groq API calls with retry logic and user-friendly error handling."""
+    for attempt in range(retries):
+        try:
+            resp = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            err = str(e).lower()
+            if "rate_limit" in err or "429" in err:
+                if attempt < retries - 1:
+                    wait = 5 * (attempt + 1)
+                    st.warning(f"⏳ API rate limit hit — retrying in {wait}s... (attempt {attempt+1}/{retries})")
+                    time.sleep(wait)
+                else:
+                    st.error("🚫 API rate limit reached. Please wait a moment and try again.")
+                    return None
+            elif "timeout" in err or "connection" in err:
+                if attempt < retries - 1:
+                    st.warning(f"🌐 Connection issue — retrying... (attempt {attempt+1}/{retries})")
+                    time.sleep(3)
+                else:
+                    st.error("🌐 Connection failed. Please check your internet and try again.")
+                    return None
+            else:
+                st.error(f"❌ Unexpected error: {str(e)[:120]}. Please try again.")
+                return None
+    return None
+
+# ─────────────────────────────────────────────
 #  HELPERS
 # ─────────────────────────────────────────────
 def scroll_to_top():
@@ -166,7 +202,7 @@ def scroll_to_top():
 
 def reset_for_new_topic():
     for k in ["explanation","quiz","user_answers","submitted","score",
-              "recommendations","explanations","topic","difficulty"]:
+              "recommendations","explanations","topic","difficulty","confirm_new"]:
         if k in st.session_state:
             del st.session_state[k]
 
@@ -193,21 +229,31 @@ h1{font-size:2.6rem!important;font-weight:700!important;
    text-align:center;margin-bottom:0.2rem!important;}
 h2,h3{color:#e2e8f0!important;font-weight:600!important;}
 
-/* onboarding */
-.onboard-card{background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.3);
-  border-radius:20px;padding:32px 36px;margin-bottom:28px;}
-.onboard-step{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;}
-.onboard-num{min-width:36px;height:36px;border-radius:50%;
-  background:linear-gradient(135deg,#7c3aed,#2563eb);
-  color:white;font-weight:700;font-size:0.9rem;
-  display:flex;align-items:center;justify-content:center;}
-.onboard-text{color:#cbd5e1;font-size:0.95rem;line-height:1.6;}
-.onboard-title{color:#e2e8f0;font-weight:700;font-size:1rem;margin-bottom:2px;}
+/* FIX 8 — polished login card */
+.login-box{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(167,139,250,0.35);
+  border-radius:20px; padding:36px 40px;
+  box-shadow:0 8px 40px rgba(124,58,237,0.25);
+}
+.login-logo{font-size:3rem;text-align:center;margin-bottom:8px;}
+.login-title{background:linear-gradient(90deg,#a78bfa,#60a5fa);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  font-size:1.6rem;font-weight:700;text-align:center;margin-bottom:4px;}
+.login-sub{color:#64748b;font-size:0.88rem;text-align:center;margin-bottom:24px;}
+.login-features{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:24px;}
+.login-feat{background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);
+  border-radius:999px;padding:4px 14px;color:#a78bfa;font-size:0.8rem;font-weight:600;}
 
-/* login */
-.login-wrap{max-width:460px;margin:60px auto 0;}
-.login-card{background:rgba(255,255,255,0.05);border:1px solid rgba(167,139,250,0.3);
-  border-radius:20px;padding:40px;}
+/* AMD badge */
+.amd-badge{
+  background:linear-gradient(135deg,#ED1C24,#FF6B35);
+  border-radius:10px;padding:10px 16px;
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:16px;
+}
+.amd-badge-text{color:white;font-size:0.82rem;font-weight:600;line-height:1.4;}
+.amd-badge-title{font-size:1rem;font-weight:700;}
 
 /* cards */
 .quiz-card{background:rgba(255,255,255,0.05);border-left:4px solid #a78bfa;
@@ -254,7 +300,6 @@ h2,h3{color:#e2e8f0!important;font-weight:600!important;}
 .diff-hard{display:inline-block;padding:3px 12px;border-radius:999px;font-size:0.78rem;font-weight:700;
   background:rgba(248,113,113,0.15);color:#f87171;border:1px solid #f87171;}
 
-/* subject tag */
 .subj-tag{display:inline-block;padding:2px 10px;border-radius:999px;font-size:0.72rem;font-weight:700;
   background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid #60a5fa;margin-left:6px;}
 
@@ -321,6 +366,11 @@ h2,h3{color:#e2e8f0!important;font-weight:600!important;}
   text-align:center;margin:16px 0;}
 .share-title{color:#e2e8f0;font-size:1.1rem;font-weight:700;margin-bottom:8px;}
 .share-body{color:#94a3b8;font-size:0.9rem;line-height:1.6;}
+
+/* confirm dialog */
+.confirm-box{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);
+  border-radius:12px;padding:16px 20px;margin:12px 0;}
+.confirm-text{color:#fca5a5;font-size:0.9rem;margin-bottom:12px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -340,6 +390,7 @@ for key, default in [
     ("difficulty",      "Medium"),
     ("subject",         "General"),
     ("recommendations", None),
+    ("confirm_new",     False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -355,27 +406,56 @@ if not st.session_state.logged_in:
 
 
 # ══════════════════════════════════════════════
-#  LOGIN / REGISTER SCREEN
+#  FIX 8 — POLISHED LOGIN SCREEN
 # ══════════════════════════════════════════════
 if not st.session_state.logged_in:
 
-    st.markdown("<h1>🎓 AI Smart Study Assistant</h1>", unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Your personal AI tutor — learn, quiz, improve.</p>', unsafe_allow_html=True)
+    st.markdown("<h1>🎓 StudyMate AI</h1>", unsafe_allow_html=True)
+    st.markdown(
+        '<p class="subtitle">Powered by AMD Instinct MI300X via Groq · Learn · Quiz · Improve</p>',
+        unsafe_allow_html=True
+    )
 
     _, col, _ = st.columns([1, 2, 1])
     with col:
-        st.markdown("### 🔐 Enter Your Username to Start")
-        st.markdown('<p style="color:#64748b;font-size:0.87rem;margin-bottom:20px;">Your progress, streak and history are saved across sessions.</p>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="login-box">
+          <div class="login-logo">🎓</div>
+          <div class="login-title">Welcome to StudyMate AI</div>
+          <div class="login-sub">Your personal AI tutor — type any topic, get a lesson, take a quiz.</div>
+          <div class="login-features">
+            <span class="login-feat">📖 AI Lessons</span>
+            <span class="login-feat">🧠 20-Q Quiz</span>
+            <span class="login-feat">💡 Smart Explanations</span>
+            <span class="login-feat">🗺️ Learning Path</span>
+            <span class="login-feat">🔥 Streak Tracking</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        username_input = st.text_input("Username", placeholder="Enter a username…", label_visibility="collapsed")
+        st.markdown("")
+        # FIX 3 — AMD badge prominently on login
+        st.markdown("""
+        <div class="amd-badge">
+          <div style="font-size:1.8rem">⚡</div>
+          <div class="amd-badge-text">
+            <div class="amd-badge-title">Powered by AMD Instinct MI300X</div>
+            Ultra-fast AI inference via Groq · &lt;2s response time · LLaMA 3.3 70B
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
+        username_input = st.text_input(
+            "Username", placeholder="Enter a username to save your progress…",
+            label_visibility="collapsed"
+        )
         if st.button("🚀 Start Learning", use_container_width=True):
             if username_input.strip():
                 name = username_input.strip().lower().replace(" ", "_")
                 db_get_or_create_user(name)
                 st.session_state.username  = name
                 st.session_state.logged_in = True
-                st.query_params["user"] = name
+                st.query_params["user"]    = name
                 st.rerun()
             else:
                 st.warning("Please enter a username!")
@@ -384,7 +464,7 @@ if not st.session_state.logged_in:
 
 
 # ══════════════════════════════════════════════
-#  LOGGED IN — load persistent data
+#  LOGGED IN
 # ══════════════════════════════════════════════
 username = st.session_state.username
 history  = db_get_history(username)
@@ -399,15 +479,22 @@ weak     = db_get_weak_areas(username)
 with st.sidebar:
 
     st.markdown(f"### 👤 {username}")
+
+    # FIX 3 — AMD badge in sidebar too
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#ED1C24,#FF6B35);border-radius:8px;
+    padding:8px 12px;margin-bottom:12px;text-align:center;">
+    <span style="color:white;font-size:0.78rem;font-weight:700;">
+    ⚡ AMD Instinct MI300X · Groq API</span></div>
+    """, unsafe_allow_html=True)
+
     st.markdown(
         f'<div class="streak-badge">'
         f'<div class="streak-num">🔥 {streak}</div>'
         f'<div class="streak-text">{"Day Streak!" if streak > 0 else "Complete a quiz to start your streak!"}</div>'
-        f'</div>',
-        unsafe_allow_html=True
+        f'</div>', unsafe_allow_html=True
     )
 
-    # Stats
     c1, c2, c3 = st.columns(3)
     c1.metric("📚 Topics",  stats["topics"])
     c2.metric("🧪 Quizzes", stats["quizzes"])
@@ -418,14 +505,13 @@ with st.sidebar:
     chart_data = db_get_chart_data(username)
     if len(chart_data) >= 2:
         st.markdown("### 📈 Accuracy Trend")
-        labels   = [f"{r[0][:12]}" for r in chart_data]
-        accuracy_vals = [r[1] for r in chart_data]
         import pandas as pd
+        labels        = [r[0][:14] for r in chart_data]
+        accuracy_vals = [r[1] for r in chart_data]
         df = pd.DataFrame({"Accuracy %": accuracy_vals}, index=labels)
         st.line_chart(df, use_container_width=True)
         st.markdown("---")
 
-    # Weak areas
     if weak:
         st.markdown("### ⚠️ Weak Areas")
         for w in weak:
@@ -433,7 +519,7 @@ with st.sidebar:
             st.markdown(
                 f'<div class="weak-card">'
                 f'<div class="weak-title">📉 {w["topic"]}</div>'
-                f'<div class="weak-detail">Avg accuracy: {w["accuracy"]}% &nbsp;·&nbsp;'
+                f'<div class="weak-detail">Avg: {w["accuracy"]}% &nbsp;·&nbsp;'
                 f'<span class="{dc}">{w["difficulty"]}</span></div>'
                 f'</div>', unsafe_allow_html=True
             )
@@ -441,16 +527,13 @@ with st.sidebar:
                 go_to_topic(w["topic"])
         st.markdown("---")
 
-    # History
     st.markdown("### 📚 Topic History")
     if not history:
         st.markdown('<p style="color:#64748b;font-size:0.85rem;">No topics yet. Start learning!</p>', unsafe_allow_html=True)
     else:
-        # Group by subject
         subjects = {}
         for e in history:
             subjects.setdefault(e["subject"], []).append(e)
-
         for subj, entries in subjects.items():
             with st.expander(f"📂 {subj} ({len(entries)})"):
                 for e in entries:
@@ -476,12 +559,13 @@ with st.sidebar:
 
 
 # ─────────────────────────────────────────────
-#  MAIN HEADER
+#  MAIN HEADER — FIX 9 branding
 # ─────────────────────────────────────────────
-st.markdown("<h1>🎓 AI Smart Study Assistant</h1>", unsafe_allow_html=True)
+st.markdown("<h1>🎓 StudyMate AI</h1>", unsafe_allow_html=True)
 st.markdown(
-    f'<p class="subtitle">Welcome back, <strong style="color:#a78bfa">{username}</strong>! '
-    f'Learn · Quiz · Improve · Track your progress.</p>',
+    f'<p class="subtitle">Welcome back, <strong style="color:#a78bfa">{username}</strong>! &nbsp;·&nbsp; '
+    f'Powered by <strong style="color:#FF6B35;">AMD Instinct MI300X</strong> via Groq &nbsp;·&nbsp; '
+    f'Learn · Quiz · Improve</p>',
     unsafe_allow_html=True
 )
 
@@ -493,7 +577,6 @@ if st.session_state.phase == "input":
 
     st.markdown('<div class="phase-pill phase-learn">Step 1 — Choose Your Topic</div>', unsafe_allow_html=True)
 
-    # Sample topics for quick start
     st.markdown("**✨ Quick Start — try one of these:**")
     qcols = st.columns(6)
     samples = ["Photosynthesis","Trigonometry","Black Holes","World War II","Machine Learning","Supply & Demand"]
@@ -508,77 +591,81 @@ if st.session_state.phase == "input":
     topic = st.text_input(
         "📚 Or type your own topic",
         value=default_topic,
-        placeholder="e.g. Photosynthesis, Trigonometry, Black Holes…"
+        placeholder="e.g. Organic Chemistry, French Revolution, Neural Networks…"
     )
     st.info("🤖 **Difficulty is auto-detected** — the AI analyses your topic's complexity automatically.", icon="💡")
 
-    if st.button("✨ Start Learning", use_container_width=False):
+    if st.button("✨ Start Learning"):
         if topic.strip():
-            progress_bar = st.progress(0, text="🔍 Analysing topic…")
+            progress_bar = st.progress(0, text="🔍 Analysing topic complexity…")
 
-            # Step 1 — detect difficulty
-            diff_resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            # Step 1 — detect difficulty (with error handling)
+            diff_content = safe_api_call(
                 messages=[
                     {"role": "system", "content": "You are an academic difficulty classifier. Reply with exactly one word only."},
-                    {"role": "user",   "content": f'Difficulty of "{topic}" for high school/first-year uni student? Reply: Easy, Medium, or Hard'}
+                    {"role": "user",   "content": f'Difficulty of "{topic}" for high school/first-year uni? Reply: Easy, Medium, or Hard'}
                 ],
                 temperature=0.1, max_tokens=5
             )
-            raw_diff = diff_resp.choices[0].message.content.strip().capitalize()
+            if diff_content is None:
+                st.stop()
+            raw_diff   = diff_content.strip().capitalize()
             difficulty = raw_diff if raw_diff in ["Easy","Medium","Hard"] else "Medium"
             subject    = detect_subject(topic)
-            progress_bar.progress(30, text="✍️ Writing your personalised lesson…")
+            progress_bar.progress(30, text="✍️ Generating your personalised lesson…")
 
             # Step 2 — generate lesson
             learn_prompt = f"""
-You are a world-class teacher. Explain "{topic}" in a way that is UNFORGETTABLE, deeply clear, and packed with examples. Be creative and engaging — NOT a textbook.
+You are a world-class teacher. Explain "{topic}" in a way that is UNFORGETTABLE, deeply clear, and packed with examples.
 
 Structure with these EXACT markdown sections:
 
 ## 🌟 What Is {topic}?
-Hook the student in 3-4 sentences. Why is this fascinating and important in real life?
+Hook the student in 3-4 sentences. Why is this fascinating and important?
 
 ## 🧠 Core Concepts (Explained Simply)
 Cover 4-5 key ideas. For EACH:
 - **Concept name**: 1-2 sentence definition
-- 💡 *Example*: A vivid everyday example they can instantly picture
+- 💡 *Example*: A vivid everyday example
 - 🔗 *Analogy*: Compare it to something familiar
 
 ## 🔬 3 Examples That Make It Click
 
 ### Example 1 — Step by Step (Beginner)
-Fully worked example, every step shown clearly.
+Fully worked example, every step shown.
 
 ### Example 2 — Real World Application
-Where this appears in real life, science, or technology. Be specific.
+Where this appears in real life or technology. Be specific.
 
 ### Example 3 — The Wow Factor
-Something surprising or counterintuitive most students don't know.
+Something surprising most students don't know.
 
 ## ⚠️ Common Mistakes Students Make
 3 things students often get wrong — corrected clearly.
 
 ## ⚡ The 5 Things You Must Remember
-Five bullet-point essentials to walk away with.
+Five bullet-point essentials.
 
-Use **bold** for key terms. Keep language simple, warm, encouraging.
+Use **bold** for key terms. Keep language simple and encouraging.
 """
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            lesson_content = safe_api_call(
                 messages=[
                     {"role": "system", "content": "You are a brilliant engaging teacher who uses vivid examples and analogies."},
                     {"role": "user",   "content": learn_prompt}
                 ],
                 temperature=0.75, max_tokens=2800
             )
+            if lesson_content is None:
+                st.stop()
+
             progress_bar.progress(100, text="✅ Lesson ready!")
 
-            st.session_state.explanation = resp.choices[0].message.content
-            st.session_state.topic       = topic
-            st.session_state.difficulty  = difficulty
-            st.session_state.subject     = subject
+            st.session_state.explanation     = lesson_content
+            st.session_state.topic           = topic
+            st.session_state.difficulty      = difficulty
+            st.session_state.subject         = subject
             st.session_state.recommendations = None
+            st.session_state.confirm_new     = False
             if "explanations" in st.session_state:
                 del st.session_state.explanations
             st.session_state.phase = "learning"
@@ -613,11 +700,29 @@ elif st.session_state.phase == "learning":
 
     col1, col2 = st.columns(2)
     with col1:
+        # FIX 11 — confirmation before changing topic
         if st.button("🔄 Change Topic"):
-            reset_for_new_topic()
-            st.session_state.phase = "input"
-            scroll_to_top()
+            st.session_state.confirm_new = True
             st.rerun()
+
+        if st.session_state.get("confirm_new"):
+            st.markdown("""
+            <div class="confirm-box">
+              <div class="confirm-text">⚠️ Are you sure? Your current lesson will be lost.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("✅ Yes, change topic"):
+                    reset_for_new_topic()
+                    st.session_state.phase = "input"
+                    scroll_to_top()
+                    st.rerun()
+            with cc2:
+                if st.button("❌ Cancel"):
+                    st.session_state.confirm_new = False
+                    st.rerun()
+
     with col2:
         if st.button("🧠 I'm Ready — Take the Quiz!"):
             progress_bar = st.progress(0, text=f"🧪 Generating {diff} quiz on {st.session_state.topic}…")
@@ -637,30 +742,24 @@ Rules:
 - Return ONLY valid JSON — no text, no markdown fences.
 
 Format:
-[
-  {{
-    "question": "Question text?",
-    "options": ["A","B","C","D"],
-    "answer_index": 0
-  }}
-]
+[{{"question":"?","options":["A","B","C","D"],"answer_index":0}}]
 """
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            quiz_content = safe_api_call(
                 messages=[
                     {"role": "system", "content": "You are a strict quiz generator. Return only valid JSON."},
                     {"role": "user",   "content": quiz_prompt}
                 ],
                 temperature=0.6, max_tokens=4000
             )
-            progress_bar.progress(100, text="✅ Quiz ready!")
+            if quiz_content is None:
+                st.stop()
 
-            raw = resp.choices[0].message.content
-            jm  = re.search(r"\[.*\]", raw, re.DOTALL)
+            progress_bar.progress(100, text="✅ Quiz ready!")
+            jm = re.search(r"\[.*\]", quiz_content, re.DOTALL)
             if jm:
                 quiz = json.loads(jm.group())
                 if len(quiz) < 20:
-                    st.warning(f"⚠️ Only {len(quiz)} questions generated — attempting to use them. Try again for a full set.")
+                    st.warning(f"⚠️ Only {len(quiz)} questions generated. Try again for a full 20-question set.")
                 st.session_state.quiz         = quiz
                 st.session_state.user_answers = {}
                 st.session_state.submitted    = False
@@ -668,17 +767,19 @@ Format:
                 scroll_to_top()
                 st.rerun()
             else:
-                st.error("Quiz generation failed. Please try again.")
+                st.error("❌ Quiz generation failed — the AI returned unexpected output. Please try again.")
 
 
 # ══════════════════════════════════════════════
 #  PHASE 3 — QUIZ
+#  FIX 5 — remove broken live progress bar,
+#           show static count instead
 # ══════════════════════════════════════════════
 elif st.session_state.phase == "quiz":
 
-    diff = st.session_state.difficulty
-    dc   = f"diff-{diff.lower()}"
-    quiz = st.session_state.quiz
+    diff  = st.session_state.difficulty
+    dc    = f"diff-{diff.lower()}"
+    quiz  = st.session_state.quiz
     total = len(quiz)
 
     st.markdown('<div class="phase-pill phase-quiz">Step 3 — Quiz Time</div>', unsafe_allow_html=True)
@@ -688,9 +789,11 @@ elif st.session_state.phase == "quiz":
         f'<span class="{dc}">{diff}</span>'
         f'</div>', unsafe_allow_html=True
     )
-
-    answered = len(st.session_state.user_answers)
-    st.progress(answered / total, text=f"Answered {answered} / {total} questions")
+    st.markdown(
+        f'<p style="color:#64748b;font-size:0.88rem;">Answer all {total} questions then click Submit. '
+        f'All questions must be answered before submitting.</p>',
+        unsafe_allow_html=True
+    )
     st.markdown('<div class="fancy-divider"></div>', unsafe_allow_html=True)
 
     with st.form("quiz_form"):
@@ -710,7 +813,7 @@ elif st.session_state.phase == "quiz":
         if st.form_submit_button("✅ Submit Answers", use_container_width=True):
             if len(st.session_state.user_answers) < total:
                 remaining = total - len(st.session_state.user_answers)
-                st.warning(f"⚠️ You have {remaining} unanswered question(s). Please answer all before submitting!")
+                st.warning(f"⚠️ {remaining} question(s) unanswered. Please answer all {total} before submitting!")
             else:
                 score = sum(
                     1 for i, q in enumerate(quiz)
@@ -718,12 +821,9 @@ elif st.session_state.phase == "quiz":
                 )
                 st.session_state.score     = score
                 st.session_state.submitted = True
-
-                # Persist to DB
                 db_save_result(username, st.session_state.topic,
                                st.session_state.subject, diff, score, total)
                 db_record_streak(username)
-
                 st.session_state.phase = "results"
                 scroll_to_top()
                 st.rerun()
@@ -756,7 +856,6 @@ elif st.session_state.phase == "results":
         f'</div>', unsafe_allow_html=True
     )
 
-    # Score + accuracy
     st.markdown(f'<div class="score-badge">🎯 {score} / {total}</div>', unsafe_allow_html=True)
     st.markdown(
         f'<div class="accuracy-wrap">'
@@ -770,40 +869,38 @@ elif st.session_state.phase == "results":
         f'</div></div>', unsafe_allow_html=True
     )
 
-    if acc == 100: st.success("🚀 Perfect score! You've truly mastered this topic!")
-    elif acc >= 80: st.success("🌟 Excellent! Great understanding — just a few slip-ups.")
-    elif acc >= 60: st.info("👍 Good effort! Go over the examples once more and you'll ace it.")
-    elif acc >= 40: st.warning("📚 You're getting there. Re-read the lesson and try again.")
-    else: st.error("💡 Don't worry — revisit the examples carefully and retake the quiz!")
+    if acc == 100:   st.success("🚀 Perfect score! You've truly mastered this topic!")
+    elif acc >= 80:  st.success("🌟 Excellent! Great understanding — just a few slip-ups.")
+    elif acc >= 60:  st.info("👍 Good effort! Review the examples once more and you'll ace it.")
+    elif acc >= 40:  st.warning("📚 Getting there. Re-read the lesson and try again.")
+    else:            st.error("💡 Don't worry — revisit the examples carefully and retake the quiz!")
 
     ca, cb, cc = st.columns(3)
     ca.metric("✅ Correct",  score)
     cb.metric("❌ Wrong",    total - score)
     cc.metric("📊 Accuracy", f"{acc}%")
 
-    # ── Shareable result card ──
     streak_now = db_get_streak(username)
     st.markdown(
         f'<div class="share-card">'
         f'<div class="share-title">📤 Share Your Result</div>'
         f'<div class="share-body">'
-        f'🎓 I just scored <strong>{score}/{total} ({acc}%)</strong> on <strong>{st.session_state.topic}</strong> '
-        f'using AI Smart Study Assistant!<br>'
-        f'🔥 Current streak: {streak_now} day(s) &nbsp;·&nbsp; '
-        f'Difficulty: {diff} &nbsp;·&nbsp; Subject: {st.session_state.get("subject","General")}'
-        f'</div></div>',
-        unsafe_allow_html=True
+        f'🎓 I scored <strong>{score}/{total} ({acc}%)</strong> on <strong>{st.session_state.topic}</strong> '
+        f'using StudyMate AI!<br>'
+        f'🔥 Streak: {streak_now} day(s) &nbsp;·&nbsp; Difficulty: {diff} &nbsp;·&nbsp; '
+        f'Subject: {st.session_state.get("subject","General")}<br>'
+        f'<em style="color:#64748b;font-size:0.8rem;">⚡ Powered by AMD Instinct MI300X via Groq</em>'
+        f'</div></div>', unsafe_allow_html=True
     )
 
     st.markdown('<div class="fancy-divider"></div>', unsafe_allow_html=True)
 
-    # ── Identify wrong / correct ──
     wrong_qs   = [(i,q) for i,q in enumerate(quiz)
                   if st.session_state.user_answers.get(i) != q["options"][q["answer_index"]]]
     correct_qs = [(i,q) for i,q in enumerate(quiz)
                   if st.session_state.user_answers.get(i) == q["options"][q["answer_index"]]]
 
-    # ── Generate explanations ──
+    # ── Generate explanations for wrong answers ──
     if wrong_qs and "explanations" not in st.session_state:
         with st.spinner("🧠 Generating explanations for your wrong answers…"):
             wrong_list = "\n".join([
@@ -812,8 +909,7 @@ elif st.session_state.phase == "results":
                 f"   Student answered: {st.session_state.user_answers.get(idx,'—')}"
                 for idx, q in wrong_qs
             ])
-            exp_resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            exp_content = safe_api_call(
                 messages=[
                     {"role": "system", "content": "You are a patient teacher. Return only valid JSON."},
                     {"role": "user",   "content": f"""
@@ -831,8 +927,11 @@ Return ONLY JSON: {{"question_number": "explanation text"}}
                 temperature=0.5, max_tokens=3000
             )
             try:
-                jm = re.search(r"\{.*\}", exp_resp.choices[0].message.content, re.DOTALL)
-                st.session_state.explanations = json.loads(jm.group()) if jm else {}
+                if exp_content:
+                    jm = re.search(r"\{.*\}", exp_content, re.DOTALL)
+                    st.session_state.explanations = json.loads(jm.group()) if jm else {}
+                else:
+                    st.session_state.explanations = {}
             except Exception:
                 st.session_state.explanations = {}
     elif "explanations" not in st.session_state:
@@ -840,7 +939,6 @@ Return ONLY JSON: {{"question_number": "explanation text"}}
 
     explanations = st.session_state.explanations
 
-    # ── Answer Review ──
     st.markdown("### 📌 Answer Review")
 
     if wrong_qs:
@@ -868,9 +966,7 @@ Return ONLY JSON: {{"question_number": "explanation text"}}
 
     st.markdown('<div class="fancy-divider"></div>', unsafe_allow_html=True)
 
-    # ══════════════════════════════════════════
-    #  RECOMMENDATIONS
-    # ══════════════════════════════════════════
+    # ── Recommendations ──
     st.markdown("## 🧭 Personalised Recommendations")
 
     all_history    = db_get_history(username)
@@ -879,39 +975,40 @@ Return ONLY JSON: {{"question_number": "explanation text"}}
 
     if st.session_state.recommendations is None:
         with st.spinner("🤖 Generating personalised recommendations…"):
-            rec_prompt = f"""
-Student just studied "{st.session_state.topic}" ({diff}, {st.session_state.get("subject","General")}) and scored {acc}% ({score}/{total}).
-Topics studied so far: {", ".join(studied_topics) if len(studied_topics) > 1 else "only this topic"}.
-Weak topics (< 60%): {", ".join(weak_topics) if weak_topics else "none"}.
-
-Return ONLY this exact JSON:
-{{
-  "related_topics": [
-    {{"topic": "Name", "reason": "1 sentence why it's the next step", "tag": "short tag"}},
-    {{"topic": "Name", "reason": "1 sentence", "tag": "short tag"}},
-    {{"topic": "Name", "reason": "1 sentence", "tag": "short tag"}}
-  ],
-  "learning_path": [
-    {{"step": 1, "topic": "Name", "why": "short reason"}},
-    {{"step": 2, "topic": "Name", "why": "short reason"}},
-    {{"step": 3, "topic": "Name", "why": "short reason"}},
-    {{"step": 4, "topic": "Name", "why": "short reason"}},
-    {{"step": 5, "topic": "Name", "why": "short reason"}}
-  ],
-  "study_tip": "Specific actionable tip based on their performance."
-}}
-"""
-            rec_resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            rec_content = safe_api_call(
                 messages=[
                     {"role": "system", "content": "You are a personalised study advisor. Return only valid JSON."},
-                    {"role": "user",   "content": rec_prompt}
+                    {"role": "user",   "content": f"""
+Student studied "{st.session_state.topic}" ({diff}) and scored {acc}% ({score}/{total}).
+Topics studied: {", ".join(studied_topics) if len(studied_topics)>1 else "only this topic"}.
+Weak topics (<60%): {", ".join(weak_topics) if weak_topics else "none"}.
+
+Return ONLY this JSON:
+{{
+  "related_topics":[
+    {{"topic":"Name","reason":"1 sentence why","tag":"short tag"}},
+    {{"topic":"Name","reason":"1 sentence","tag":"short tag"}},
+    {{"topic":"Name","reason":"1 sentence","tag":"short tag"}}
+  ],
+  "learning_path":[
+    {{"step":1,"topic":"Name","why":"short reason"}},
+    {{"step":2,"topic":"Name","why":"short reason"}},
+    {{"step":3,"topic":"Name","why":"short reason"}},
+    {{"step":4,"topic":"Name","why":"short reason"}},
+    {{"step":5,"topic":"Name","why":"short reason"}}
+  ],
+  "study_tip":"Specific actionable tip based on their score."
+}}
+"""}
                 ],
                 temperature=0.7, max_tokens=1500
             )
             try:
-                jm = re.search(r"\{.*\}", rec_resp.choices[0].message.content, re.DOTALL)
-                st.session_state.recommendations = json.loads(jm.group()) if jm else {}
+                if rec_content:
+                    jm = re.search(r"\{.*\}", rec_content, re.DOTALL)
+                    st.session_state.recommendations = json.loads(jm.group()) if jm else {}
+                else:
+                    st.session_state.recommendations = {}
             except Exception:
                 st.session_state.recommendations = {}
 
@@ -977,8 +1074,25 @@ Return ONLY this exact JSON:
             scroll_to_top()
             st.rerun()
 
+    # FIX 11 — confirmation before starting over
     if st.button("🏠 Study a New Topic"):
-        reset_for_new_topic()
-        st.session_state.phase = "input"
-        scroll_to_top()
+        st.session_state.confirm_new = True
         st.rerun()
+
+    if st.session_state.get("confirm_new"):
+        st.markdown("""
+        <div class="confirm-box">
+          <div class="confirm-text">⚠️ Start a new topic? Your current session will be cleared.</div>
+        </div>
+        """, unsafe_allow_html=True)
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            if st.button("✅ Yes, new topic"):
+                reset_for_new_topic()
+                st.session_state.phase = "input"
+                scroll_to_top()
+                st.rerun()
+        with cc2:
+            if st.button("❌ Stay here"):
+                st.session_state.confirm_new = False
+                st.rerun()
